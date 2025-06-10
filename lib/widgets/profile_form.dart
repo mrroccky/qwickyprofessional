@@ -12,6 +12,7 @@ import 'package:qwickyprofessional/widgets/field_boxes.dart';
 import 'package:qwickyprofessional/widgets/main_button.dart';
 import 'package:qwickyprofessional/Main/home_screen.dart';
 import 'package:qwickyprofessional/Main/service_choose.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfileFormWidget extends StatefulWidget {
   final String address;
@@ -128,110 +129,136 @@ class _ProfileFormWidgetState extends State<ProfileFormWidget> {
     }
   }
 
-  Future<void> _saveProfile(UserProvider userProvider) async {
-    if (!_validateForm()) {
-      return;
+ Future<void> _saveProfile(UserProvider userProvider) async {
+  if (!_validateForm()) {
+    return;
+  }
+
+  try {
+    final String apiUrl = dotenv.env['BACK_END_API'] ?? 'http://192.168.1.37:3000/api';
+
+    String? profileImageBase64;
+    if (_profileImage != null) {
+      if (!await _profileImage!.exists()) {
+        throw Exception('Profile image file does not exist');
+      }
+
+      final bytes = await _profileImage!.readAsBytes();
+      if (bytes.isEmpty) {
+        throw Exception('Profile image data is empty');
+      }
+
+      profileImageBase64 = base64Encode(bytes);
+      print('Profile image Base64 length: ${profileImageBase64.length}');
+      print('Profile image Base64 preview: ${profileImageBase64.substring(0, 100)}...');
     }
 
-    try {
-      final String apiUrl = dotenv.env['BACK_END_API'] ?? 'http://192.168.1.37:3000/api';
+    Map<String, dynamic> existingUserData = userProvider.userData ?? {};
 
-      String? profileImageBase64;
-      if (_profileImage != null) {
-        if (!await _profileImage!.exists()) {
-          throw Exception('Profile image file does not exist');
-        }
+    final Map<String, dynamic> userData = {
+      'first_name': _firstNameController.text.isNotEmpty ? _firstNameController.text : existingUserData['first_name'] ?? '',
+      'last_name': _lastNameController.text.isNotEmpty ? _lastNameController.text : existingUserData['last_name'] ?? '',
+      'email': _emailController.text.isNotEmpty ? _emailController.text : existingUserData['email'] ?? '',
+      'phone_number': _phoneController.text.isNotEmpty ? _phoneController.text : existingUserData['phone_number'] ?? userProvider.lastVerifiedPhoneNumber ?? '',
+      'password': _passwordController.text.isNotEmpty ? _passwordController.text : null,
+      'profile_image_url': profileImageBase64 ?? existingUserData['profile_image_url'] ?? '',
+      'gender': _gender ?? existingUserData['gender'] ?? '',
+      'date_of_birth': _dob?.toIso8601String() ?? existingUserData['date_of_birth'] ?? '',
+      'address_line': _addressController.text.isNotEmpty ? _addressController.text : existingUserData['address_line'] ?? '',
+      'city': _cityController.text.isNotEmpty ? _cityController.text : existingUserData['city'] ?? '',
+      'state': _selectedState ?? existingUserData['state'] ?? '',
+      'country': _countryController.text.isNotEmpty ? _countryController.text : existingUserData['country'] ?? '',
+      'postal_code': _postalCodeController.text.isNotEmpty ? _postalCodeController.text : existingUserData['postal_code'] ?? '',
+      'is_email_verified': existingUserData['is_email_verified'] ?? false,
+      'is_phone_number_verified': existingUserData['is_phone_number_verified'] ?? true,
+      'created_at': existingUserData['created_at'] ?? DateTime.now().toIso8601String(),
+      'last_login_at': existingUserData['last_login_at'] ?? null,
+      'account_status': existingUserData['account_status'] ?? 'active',
+      'preferred_language': existingUserData['preferred_language'] ?? 'en',
+      'is_premium_user': existingUserData['is_premium_user'] ?? false,
+      'referral_code': _referralController.text.isNotEmpty ? _referralController.text : existingUserData['referral_code'] ?? null,
+      'referred_by': existingUserData['referred_by'] ?? null,
+    };
 
-        final bytes = await _profileImage!.readAsBytes();
-        if (bytes.isEmpty) {
-          throw Exception('Profile image data is empty');
-        }
+    http.Response response;
+    bool isNewUser = userProvider.userData == null;
 
-        profileImageBase64 = base64Encode(bytes);
-        print('Profile image Base64 length: ${profileImageBase64.length}');
-        print('Profile image Base64 preview: ${profileImageBase64.substring(0, 100)}...');
+    if (!isNewUser) {
+      final userId = userProvider.userData!['user_id'];
+      if (userId == null) {
+        throw Exception('User ID not found');
       }
 
-      Map<String, dynamic> existingUserData = userProvider.userData ?? {};
+      print('Updating user with ID: $userId with data: $userData');
+      response = await http.put(
+        Uri.parse('$apiUrl/users/$userId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(userData),
+      );
+    } else {
+      print('Creating new user with data: $userData');
+      response = await http.post(
+        Uri.parse('$apiUrl/users'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(userData),
+      );
+    }
 
-      final Map<String, dynamic> userData = {
-        'first_name': _firstNameController.text.isNotEmpty ? _firstNameController.text : existingUserData['first_name'] ?? '',
-        'last_name': _lastNameController.text.isNotEmpty ? _lastNameController.text : existingUserData['last_name'] ?? '',
-        'email': _emailController.text.isNotEmpty ? _emailController.text : existingUserData['email'] ?? '',
-        'phone_number': _phoneController.text.isNotEmpty ? _phoneController.text : existingUserData['phone_number'] ?? userProvider.lastVerifiedPhoneNumber ?? '',
-        'password': _passwordController.text.isNotEmpty ? _passwordController.text : null,
-        'profile_image_url': profileImageBase64 ?? existingUserData['profile_image_url'] ?? '',
-        'gender': _gender ?? existingUserData['gender'] ?? '',
-        'date_of_birth': _dob?.toIso8601String() ?? existingUserData['date_of_birth'] ?? '',
-        'address_line': _addressController.text.isNotEmpty ? _addressController.text : existingUserData['address_line'] ?? '',
-        'city': _cityController.text.isNotEmpty ? _cityController.text : existingUserData['city'] ?? '',
-        'state': _selectedState ?? existingUserData['state'] ?? '',
-        'country': _countryController.text.isNotEmpty ? _countryController.text : existingUserData['country'] ?? '',
-        'postal_code': _postalCodeController.text.isNotEmpty ? _postalCodeController.text : existingUserData['postal_code'] ?? '',
-        'is_email_verified': existingUserData['is_email_verified'] ?? false,
-        'is_phone_number_verified': existingUserData['is_phone_number_verified'] ?? true,
-        'created_at': existingUserData['created_at'] ?? null,
-        'last_login_at': existingUserData['last_login_at'] ?? null,
-        'account_status': existingUserData['account_status'] ?? 'active',
-        'preferred_language': existingUserData['preferred_language'] ?? 'en',
-        'is_premium_user': existingUserData['is_premium_user'] ?? false,
-        'referral_code': _referralController.text.isNotEmpty ? _referralController.text : existingUserData['referral_code'] ?? null,
-        'referred_by': existingUserData['referred_by'] ?? null,
-      };
+    print('API Response status: ${response.statusCode}');
+    print('API Response body: ${response.body}');
 
-      http.Response response;
-      if (userProvider.userData != null) {
-        final userId = userProvider.userData!['user_id'];
-        if (userId == null) {
-          throw Exception('User ID not found');
-        }
-
-        print('Updating user with ID: $userId with data: $userData');
-        response = await http.put(
-          Uri.parse('$apiUrl/users/$userId'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(userData),
-        );
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      Map<String, dynamic> updatedUserData = {...userData};
+      if (!isNewUser) {
+        updatedUserData['user_id'] = userProvider.userData!['user_id'];
       } else {
-        print('Creating new user with data: $userData');
-        response = await http.post(
-          Uri.parse('$apiUrl/users'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(userData),
-        );
+        final responseData = json.decode(response.body);
+        if (responseData['user_id'] == null) {
+          throw Exception('User ID not returned in API response');
+        }
+        updatedUserData['user_id'] = responseData['user_id'].toString();
       }
 
-      print('API Response status: ${response.statusCode}');
-      print('API Response body: ${response.body}');
+      // Save userId to SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userId', updatedUserData['user_id']);
+      print('Saved userId to SharedPreferences: ${updatedUserData['user_id']}');
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        Map<String, dynamic> updatedUserData = {...userData};
-        if (userProvider.userData != null) {
-          updatedUserData['user_id'] = userProvider.userData!['user_id'];
-        } else {
-          final responseData = json.decode(response.body);
-          updatedUserData['user_id'] = responseData['user_id'].toString();
-        }
+      userProvider.setUserData(updatedUserData);
+      userProvider.setEditing(false);
 
-        userProvider.setUserData(updatedUserData);
-        userProvider.setEditing(false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isNewUser ? 'Profile created successfully!' : 'Profile updated successfully!'),
+        ),
+      );
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(userProvider.userData != null
-                ? 'Profile updated successfully!'
-                : 'Profile created successfully!'),
+      // Determine navigation based on user status
+      if (isNewUser) {
+        // New user: always navigate to ServiceChoose
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => ServiceChoose(address: widget.address),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              const begin = Offset(1.0, 0.0);
+              const end = Offset.zero;
+              const curve = Curves.easeInOut;
+              var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+              return SlideTransition(
+                position: animation.drive(tween),
+                child: child,
+              );
+            },
+            transitionDuration: const Duration(milliseconds: 300),
           ),
         );
-
-        // Check if professional service is selected
+      } else {
+        // Existing user: check professional service
         bool hasService = await _checkProfessionalService(userProvider);
-
-        // Navigate based on service selection
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) => hasService
-                ? const HomeScreen()
+                ? HomeScreen(address: widget.address,)
                 : ServiceChoose(address: widget.address),
             transitionsBuilder: (context, animation, secondaryAnimation, child) {
               const begin = Offset(1.0, 0.0);
@@ -246,23 +273,24 @@ class _ProfileFormWidgetState extends State<ProfileFormWidget> {
             transitionDuration: const Duration(milliseconds: 300),
           ),
         );
-
-        if (widget.isModal) {
-          widget.onSave?.call();
-        }
-      } else {
-        print('Response body: ${response.body}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save profile: ${response.statusCode}')),
-        );
       }
-    } catch (e) {
-      print('Error saving profile: $e');
+
+      if (widget.isModal) {
+        widget.onSave?.call();
+      }
+    } else {
+      print('Response body: ${response.body}');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving profile: $e')),
+        SnackBar(content: Text('Failed to save profile: ${response.statusCode}')),
       );
     }
+  } catch (e) {
+    print('Error saving profile: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error saving profile: $e')),
+    );
   }
+}
 
   @override
   void dispose() {

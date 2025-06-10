@@ -298,7 +298,7 @@ class _LocationPermissionScreenState extends State<LocationPermissionScreen> wit
               // All conditions met: user data exists, service selected, file uploaded
               Navigator.of(context).pushReplacement(
                 PageRouteBuilder(
-                  pageBuilder: (context, animation, secondaryAnimation) => const HomeScreen(),
+                  pageBuilder: (context, animation, secondaryAnimation) => HomeScreen(address: address,),
                   transitionsBuilder: (context, animation, secondaryAnimation, child) {
                     const begin = Offset(1.0, 0.0);
                     const end = Offset.zero;
