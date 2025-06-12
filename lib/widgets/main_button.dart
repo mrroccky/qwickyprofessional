@@ -5,7 +5,8 @@ class MainButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
   final Widget? child;
-  const MainButton({super.key, required this.text, required this.onPressed,this.child,});
+  final Color? color;
+  const MainButton({super.key, required this.text, required this.onPressed,this.child, this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +18,7 @@ class MainButton extends StatelessWidget {
         child: ElevatedButton(
           onPressed: onPressed,
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primaryColor,
+            backgroundColor: color??AppColors.primaryColor,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),

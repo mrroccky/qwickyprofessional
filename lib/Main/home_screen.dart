@@ -295,8 +295,24 @@ class _HomeScreenState extends State<HomeScreen> {
             SizedBox(height: height * 0.01),
             if (_professionalId != null)
               RatingPart(professionalId: _professionalId!),
-            SizedBox(height:height * 0.01),
-            const JobRequestsScreen(),
+            SizedBox(height: height * 0.01),
+            if (_isOnline && _professionalId != null)
+              const JobRequestsScreen()
+            else
+              Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: height * 0.02),
+                  child: Text(
+                    'Please switch to online status to view available services.',
+                    style: TextStyle(
+                      fontSize: height * 0.022,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[600],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
