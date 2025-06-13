@@ -28,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isPending = true;
   bool _isLoading = true;
   int? _professionalId;
+  double? _moneyEarned = 0.00;
 
   @override
   void initState() {
@@ -68,6 +69,9 @@ class _HomeScreenState extends State<HomeScreen> {
             _isPending = userProfessional['status'] == 'pending';
             _isOnline = userProfessional['availability'] == 'online';
             _professionalId = userProfessional['professional_id'];
+            _moneyEarned = userProfessional['money_earned'] != null
+                ? double.parse(userProfessional['money_earned'].toString())
+                : 0.00;
             _isLoading = false;
           });
         } else {
@@ -90,6 +94,47 @@ class _HomeScreenState extends State<HomeScreen> {
         _isPending = false;
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _refreshEarnings() async {
+    try {
+      final String apiUrl = dotenv.env['BACK_END_API'] ?? 'http://192.168.1.37:3000/api';
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final userId = userProvider.userData?['user_id']?.toString();
+
+      if (userId == null) {
+        print('Error: user_id not found in userData');
+        return;
+      }
+
+      final response = await http.get(
+        Uri.parse('$apiUrl/professionals'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> professionals = jsonDecode(response.body);
+        final userProfessional = professionals.firstWhere(
+          (professional) => professional['user_id'].toString() == userId,
+          orElse: () => null,
+        );
+
+        if (userProfessional != null) {
+          setState(() {
+            _moneyEarned = userProfessional['money_earned'] != null
+                ? double.parse(userProfessional['money_earned'].toString())
+                : 0.00;
+          });
+        }
+      } else {
+        print('Failed to fetch professionals: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error refreshing earnings: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error refreshing earnings: $e')),
+      );
     }
   }
 
@@ -264,7 +309,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Weekly Earnings',
+                          'Total Earnings',
                           style: TextStyle(
                             fontSize: height * 0.021,
                             fontWeight: FontWeight.w500,
@@ -273,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         SizedBox(height: height * 0.01),
                         Text(
-                          '₹ 5,000',
+                          '₹ ${_moneyEarned?.toStringAsFixed(2) ?? '0.00'}',
                           style: TextStyle(
                             fontSize: height * 0.035,
                             fontWeight: FontWeight.bold,
@@ -297,7 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
               RatingPart(professionalId: _professionalId!),
             SizedBox(height: height * 0.01),
             if (_isOnline && _professionalId != null)
-              const JobRequestsScreen()
+              JobRequestsScreen(onBookingCompleted: _refreshEarnings)
             else
               Center(
                 child: Padding(
