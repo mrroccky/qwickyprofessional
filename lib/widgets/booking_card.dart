@@ -37,23 +37,26 @@ class BookingCard extends StatefulWidget {
 
 class _BookingCardState extends State<BookingCard> {
   String _serviceDuration = '';
+  String _phoneNumber = '';
 
   @override
   void initState() {
     super.initState();
-    _fetchServiceDuration();
+    _fetchServiceDurationAndUser();
   }
 
-  Future<void> _fetchServiceDuration() async {
+  Future<void> _fetchServiceDurationAndUser() async {
     try {
       final String apiUrl = dotenv.env['BACK_END_API'] ?? 'http://192.168.1.37:3000/api';
-      final response = await http.get(
+      
+      // Fetch service details
+      final serviceResponse = await http.get(
         Uri.parse('$apiUrl/services'),
         headers: {'Content-Type': 'application/json'},
       );
 
-      if (response.statusCode == 200) {
-        final List<dynamic> services = jsonDecode(response.body);
+      if (serviceResponse.statusCode == 200) {
+        final List<dynamic> services = jsonDecode(serviceResponse.body);
         final service = services.firstWhere(
           (service) => service['service_id'] == widget.serviceId,
           orElse: () => null,
@@ -70,10 +73,25 @@ class _BookingCardState extends State<BookingCard> {
           });
         }
       } else {
-        print('Failed to fetch services: ${response.statusCode}');
+        print('Failed to fetch services: ${serviceResponse.statusCode}');
+      }
+
+      // Fetch user details
+      final userResponse = await http.get(
+        Uri.parse('$apiUrl/users/${widget.booking['user_id']}'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (userResponse.statusCode == 200) {
+        final user = jsonDecode(userResponse.body);
+        setState(() {
+          _phoneNumber = user['phone_number'] ?? 'N/A';
+        });
+      } else {
+        print('Failed to fetch user: ${userResponse.statusCode}');
       }
     } catch (e) {
-      print('Error fetching service duration: $e');
+      print('Error fetching service duration or user: $e');
     }
   }
 
@@ -161,9 +179,24 @@ class _BookingCardState extends State<BookingCard> {
               children: [
                 Icon(Icons.access_time, size: height * 0.03, color: AppColors.primaryColor),
                 SizedBox(width: width * 0.02),
-                Text(
-                  'Today at ${widget.booking['scheduled_time']}',
-                  style: TextStyle(fontSize: height * 0.02),
+                Expanded(
+                  child: Text(
+                    'Today at ${widget.booking['scheduled_time']}',
+                    style: TextStyle(fontSize: height * 0.02),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: height * 0.01),
+            Row(
+              children: [
+                Icon(Icons.phone, size: height * 0.03, color: AppColors.primaryColor),
+                SizedBox(width: width * 0.02),
+                Expanded(
+                  child: Text(
+                    'Phone Number: $_phoneNumber',
+                    style: TextStyle(fontSize: height * 0.02),
+                  ),
                 ),
               ],
             ),
@@ -203,22 +236,28 @@ class _BookingCardState extends State<BookingCard> {
                 children: [
                   Flexible(
                     child: SizedBox(
-                      width: width * 0.42,
-                      child: MainButton(
-                        text: 'Accept',
-                        onPressed: widget.onAccept,
-                        color: AppColors.primaryColor,
+                      width: width * 0.6,
+                      child: Transform.scale(
+                        scale: 0.9,
+                        child: MainButton(
+                          text: 'Accept',
+                          onPressed: widget.onAccept,
+                          color: AppColors.primaryColor,
+                        ),
                       ),
                     ),
                   ),
                   SizedBox(width: width * 0.02),
                   Flexible(
                     child: SizedBox(
-                      width: width * 0.42,
-                      child: MainButton(
-                        text: 'Reject',
-                        onPressed: widget.onReject,
-                        color: Colors.red,
+                      width: width * 0.6,
+                      child: Transform.scale(
+                        scale: 0.9,
+                        child: MainButton(
+                          text: 'Reject',
+                          onPressed: widget.onReject,
+                          color: Colors.red,
+                        ),
                       ),
                     ),
                   ),
@@ -274,10 +313,13 @@ class _BookingCardState extends State<BookingCard> {
                       Flexible(
                         flex: 2,
                         child: SizedBox(
-                          child: MainButton(
-                            text: 'Submit PIN',
-                            onPressed: () => widget.onPinSubmit(widget.pinController.text, widget.booking['booking_pin']),
-                            color: AppColors.primaryColor,
+                          child: Transform.scale(
+                            scale: 0.9,
+                            child: MainButton(
+                              text: 'Submit PIN',
+                              onPressed: () => widget.onPinSubmit(widget.pinController.text, widget.booking['booking_pin']),
+                              color: AppColors.primaryColor,
+                            ),
                           ),
                         ),
                       ),

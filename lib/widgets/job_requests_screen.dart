@@ -8,7 +8,7 @@ import 'dart:convert';
 import 'dart:async';
 
 class JobRequestsScreen extends StatefulWidget {
-  final VoidCallback? onBookingCompleted; // Added callback for completion
+  final VoidCallback? onBookingCompleted;
 
   const JobRequestsScreen({super.key, this.onBookingCompleted});
 
@@ -324,70 +324,75 @@ class _JobRequestsScreenState extends State<JobRequestsScreen> {
   }
 
   Future<void> _handleComplete(int bookingId) async {
-    try {
-      final String apiUrl = dotenv.env['BACK_END_API'] ?? 'http://192.168.1.37:3000/api';
-      final bookingResponse = await http.get(
-        Uri.parse('$apiUrl/bookings/$bookingId'),
+  try {
+    final String apiUrl = dotenv.env['BACK_END_API'] ?? 'http://192.168.1.37:3000/api';
+    final bookingResponse = await http.get(
+      Uri.parse('$apiUrl/bookings/$bookingId'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (bookingResponse.statusCode == 200) {
+      final booking = jsonDecode(bookingResponse.body);
+      final serviceResponse = await http.get(
+        Uri.parse('$apiUrl/services/${booking['service_id']}'),
         headers: {'Content-Type': 'application/json'},
       );
 
-      if (bookingResponse.statusCode == 200) {
-        final booking = jsonDecode(bookingResponse.body);
-        final serviceResponse = await http.get(
-          Uri.parse('$apiUrl/services/${booking['service_id']}'),
+      if (serviceResponse.statusCode == 200) {
+        final service = jsonDecode(serviceResponse.body);
+        final servicePrice = double.parse(service['service_price'].toString());
+        final commissionMoney = double.parse(service['commission_money'].toString());
+        final totalAmount = double.parse(booking['total_amount'].toString());
+        
+        // Calculate number of service instances booked
+        final serviceCount = totalAmount / servicePrice;
+        // Calculate total earnings for the professional
+        final earnings = totalAmount - (commissionMoney * serviceCount);
+
+        final updateBookingResponse = await http.put(
+          Uri.parse('$apiUrl/bookings/$bookingId'),
           headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'status': 'completed'}),
         );
 
-        if (serviceResponse.statusCode == 200) {
-          final service = jsonDecode(serviceResponse.body);
-          final servicePrice = double.parse(service['service_price'].toString());
-          final commissionMoney = double.parse(service['commission_money'].toString());
-          final earnings = servicePrice - commissionMoney;
+        final updateProfessionalResponse = await http.put(
+          Uri.parse('$apiUrl/professionals/$_professionalId'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'money_earned': earnings}),
+        );
 
-          final updateBookingResponse = await http.put(
-            Uri.parse('$apiUrl/bookings/$bookingId'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'status': 'completed'}),
-          );
-
-          final updateProfessionalResponse = await http.put(
-            Uri.parse('$apiUrl/professionals/$_professionalId'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'money_earned': earnings}),
-          );
-
-          if (updateBookingResponse.statusCode == 200 && updateProfessionalResponse.statusCode == 200) {
-            setState(() {
-              _bookings = _bookings.where((b) => b['booking_id'] != bookingId).toList();
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Service marked as completed')),
-            );
-            // Notify parent to refresh earnings
-            widget.onBookingCompleted?.call();
-          } else {
-            print('Failed to update: booking=${updateBookingResponse.statusCode}, professional=${updateProfessionalResponse.statusCode}');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to complete booking')),
-            );
-          }
-        } else {
-          print('Failed to fetch service: ${serviceResponse.statusCode}');
+        if (updateBookingResponse.statusCode == 200 && updateProfessionalResponse.statusCode == 200) {
+          setState(() {
+            _bookings = _bookings.where((b) => b['booking_id'] != bookingId).toList();
+          });
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to fetch service details')),
+            const SnackBar(content: Text('Service marked as completed')),
+          );
+          // Notify parent to refresh earnings
+          widget.onBookingCompleted?.call();
+        } else {
+          print('Failed to update: booking=${updateBookingResponse.statusCode}, professional=${updateProfessionalResponse.statusCode}');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to complete booking')),
           );
         }
       } else {
-        print('Failed to fetch booking: ${bookingResponse.statusCode}');
+        print('Failed to fetch service: ${serviceResponse.statusCode}');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to fetch booking details')),
+          SnackBar(content: Text('Failed to fetch service details')),
         );
       }
-    } catch (e) {
-      print('Error completing booking: $e');
+    } else {
+      print('Failed to fetch booking: ${bookingResponse.statusCode}');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
+        SnackBar(content: Text('Failed to fetch booking details')),
       );
     }
+  } catch (e) {
+    print('Error completing booking: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error: $e')),
+    );
   }
+}
 }
